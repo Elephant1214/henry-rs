@@ -1,5 +1,6 @@
+use thiserror::Error;
 
-#[derive(thiserror::Error, Debug)]
+#[derive(Error, Debug)]
 pub enum HenryError {
     #[error("missing environment variable: {0}")]
     MissingEnvironmentVariable(String),

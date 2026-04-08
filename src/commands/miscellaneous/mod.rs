@@ -1,12 +1,13 @@
+use crate::HenryContext;
 use crate::commands::check_command_enabled;
 use crate::embeds::HenryEmbed;
-use crate::{HenryCmdError, HenryContext};
+use crate::henry_error::HenryResult;
+use poise::CreateReply;
 use poise::serenity_prelude::colours::branding::YELLOW;
 use poise::serenity_prelude::colours::roles::{BLUE, GREEN, RED};
-use poise::CreateReply;
 
 #[poise::command(slash_command, prefix_command, check = "check_command_enabled")]
-pub async fn ping(ctx: HenryContext<'_>) -> Result<(), HenryCmdError> {
+pub async fn ping(ctx: HenryContext<'_>) -> HenryResult<()> {
     let ping = ctx.ping().await.as_millis();
     let color = if ping == 0 {
         BLUE

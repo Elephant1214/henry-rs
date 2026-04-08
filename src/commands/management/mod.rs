@@ -1,9 +1,10 @@
-use crate::{HenryCmdError, HenryContext};
+use crate::HenryContext;
+use crate::henry_error::HenryResult;
 use poise::serenity_prelude::{Colour, CreateEmbed};
 use poise::{ChoiceParameter, CreateReply};
 
 #[poise::command(slash_command, prefix_command, subcommands("enable", "disable"))]
-pub async fn settings(ctx: HenryContext<'_>) -> Result<(), HenryCmdError> {
+pub async fn settings(ctx: HenryContext<'_>) -> HenryResult<()> {
     Ok(())
 }
 
@@ -22,7 +23,7 @@ pub async fn enable(
     ctx: HenryContext<'_>,
     command: String,
     scope: Option<CmdScope>,
-) -> Result<(), HenryCmdError> {
+) -> HenryResult<()> {
     let command = command.to_lowercase();
 
     let reply = if does_command_exist(ctx, &command) {
@@ -51,7 +52,7 @@ pub async fn disable(
     ctx: HenryContext<'_>,
     command: String,
     scope: Option<CmdScope>,
-) -> Result<(), HenryCmdError> {
+) -> HenryResult<()> {
     let command = command.to_lowercase();
 
     let reply = if does_command_exist(ctx, &command) {

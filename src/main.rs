@@ -1,8 +1,8 @@
 mod commands;
 mod db;
+mod embeds;
 mod events;
 mod henry_error;
-mod embeds;
 
 use crate::commands::command_manager::CommandManager;
 use crate::db::HenryDb;
@@ -27,22 +27,19 @@ pub struct HenryData {
     pub db: HenryDb,
 }
 
-pub type HenryCmdError = Box<dyn Error + Send + Sync>;
-pub type HenryContext<'a> = poise::Context<'a, HenryData, HenryCmdError>;
+pub type HenryContext<'a> = poise::Context<'a, HenryData, HenryError>;
 
 fn read_var(key: &str) -> HenryResult<String> {
-    let result = std::env::var(key);
-    if result.as_ref().is_ok_and(|string| !string.is_empty()) {
-        Ok(result.unwrap())
-    } else {
-        Err(HenryError::MissingEnvironmentVariable(key.to_string()))
+    match std::env::var(key) {
+        Ok(v) if !v.is_empty() => Ok(v),
+        _ => Err(HenryError::MissingEnvironmentVariable(key.to_string())),
     }
 }
 
 fn read_owners() -> HenryResult<HashSet<UserId>> {
     Ok(read_var("OWNERS")?
-        .replace(" ", "")
         .split(",")
+        .map(str::trim)
         .filter_map(|id| match UserId::from_str(id) {
             Ok(user_id) => Some(user_id),
             Err(_) => {
@@ -50,12 +47,15 @@ fn read_owners() -> HenryResult<HashSet<UserId>> {
                 None
             }
         })
-        .collect::<HashSet<UserId>>())
+        .collect())
 }
 
-fn get_framework_options(owners: HashSet<UserId>) -> FrameworkOptions<HenryData, HenryCmdError> {
+fn get_framework_options(owners: HashSet<UserId>) -> FrameworkOptions<HenryData, HenryError> {
     FrameworkOptions {
-        commands: vec![commands::miscellaneous::ping(), commands::management::settings()],
+        commands: vec![
+            commands::miscellaneous::ping(),
+            commands::management::settings(),
+        ],
         prefix_options: PrefixFrameworkOptions {
             prefix: Some("h!".into()),
             edit_tracker: Some(Arc::new(EditTracker::for_timespan(Duration::from_secs(
@@ -68,10 +68,7 @@ fn get_framework_options(owners: HashSet<UserId>) -> FrameworkOptions<HenryData,
     }
 }
 
-fn build_framework(
-    owners: HashSet<UserId>,
-    db_path: String,
-) -> Framework<HenryData, HenryCmdError> {
+fn build_framework(owners: HashSet<UserId>, db_path: String) -> Framework<HenryData, HenryError> {
     let options = get_framework_options(owners);
 
     Framework::builder()
@@ -85,7 +82,7 @@ fn build_framework(
                         .options()
                         .commands
                         .iter()
-                        .map(|cmd| cmd.name.clone())
+                        .map(|cmd| cmd.name.to_string())
                         .collect(),
                     command_manager: CommandManager::new(),
                     db: HenryDb::new(db_path).await,
@@ -95,15 +92,13 @@ fn build_framework(
         .build()
 }
 
-async fn start_bot(
-    token: String,
-    framework: Framework<HenryData, HenryCmdError>,
-) -> HenryResult<()> {
+async fn start_bot(token: String, framework: Framework<HenryData, HenryError>) -> HenryResult<()> {
     let mut client = ClientBuilder::new(token, GatewayIntents::all())
         .framework(framework)
         .event_handler(HenryEventHandler {})
         .await?;
-    Ok(client.start().await?)
+    client.start().await?;
+    Ok(())
 }
 
 #[tokio::main]
@@ -111,7 +106,7 @@ async fn main() -> HenryResult<()> {
     tracing_subscriber::fmt::init();
 
     if let Err(e) = dotenv() {
-        warn!("Not .env file was found: {e}");
+        warn!("No .env file was found: {e}");
     }
 
     let bot_token = read_var("BOT_TOKEN")?;
@@ -120,7 +115,7 @@ async fn main() -> HenryResult<()> {
     //let db_url = read_var("DATABASE_URL")?;
     //let db_path = PathBuf::from_str(&db_url)?;
 
-    let framework = build_framework(owners, String::from_str(":memory:").unwrap());
+    let framework = build_framework(owners, String::from(":memory:"));
     start_bot(bot_token, framework).await?;
 
     Ok(())
