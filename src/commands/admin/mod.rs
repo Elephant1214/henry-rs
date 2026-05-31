@@ -1,10 +1,10 @@
-use crate::HenryContext;
-use crate::henry_error::HenryResult;
+use crate::{HenryContext, HenryResult};
+use crate::commands::does_command_exist;
 use poise::serenity_prelude::{Colour, CreateEmbed};
 use poise::{ChoiceParameter, CreateReply};
 
 #[poise::command(slash_command, prefix_command, subcommands("enable", "disable"))]
-pub async fn settings(ctx: HenryContext<'_>) -> HenryResult<()> {
+pub async fn admin(ctx: HenryContext<'_>) -> HenryResult<()> {
     Ok(())
 }
 
@@ -12,10 +12,6 @@ pub async fn settings(ctx: HenryContext<'_>) -> HenryResult<()> {
 pub enum CmdScope {
     Guild,
     Global,
-}
-
-fn does_command_exist(ctx: HenryContext<'_>, command: &String) -> bool {
-    ctx.data().command_list.contains(command)
 }
 
 #[poise::command(slash_command, prefix_command, owners_only)]

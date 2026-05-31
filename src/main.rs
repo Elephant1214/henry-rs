@@ -2,12 +2,11 @@ mod commands;
 mod db;
 mod embeds;
 mod events;
-mod henry_error;
 
 use crate::commands::command_manager::CommandManager;
 use crate::db::HenryDb;
 use crate::events::HenryEventHandler;
-use crate::henry_error::{HenryError, HenryResult};
+use anyhow::{Context, bail};
 use dotenvy::dotenv;
 use log::{error, warn};
 use poise::builtins::register_globally;
@@ -15,8 +14,6 @@ use poise::serenity_prelude::{ClientBuilder, GatewayIntents, UserId};
 use poise::{EditTracker, Framework, FrameworkOptions, PrefixFrameworkOptions};
 use std::collections::HashSet;
 use std::default::Default;
-use std::error::Error;
-use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
@@ -27,35 +24,38 @@ pub struct HenryData {
     pub db: HenryDb,
 }
 
+pub type HenryResult<T> = anyhow::Result<T>;
+pub type HenryError = anyhow::Error;
+
 pub type HenryContext<'a> = poise::Context<'a, HenryData, HenryError>;
 
 fn read_var(key: &str) -> HenryResult<String> {
-    match std::env::var(key) {
-        Ok(v) if !v.is_empty() => Ok(v),
-        _ => Err(HenryError::MissingEnvironmentVariable(key.to_string())),
+    let value = std::env::var(key).context(format!("Missing environment variable {}", key))?;
+
+    if value.is_empty() {
+        bail!("Environment variable {} is empty", key);
     }
+
+    Ok(value)
 }
 
 fn read_owners() -> HenryResult<HashSet<UserId>> {
     Ok(read_var("OWNERS")?
         .split(",")
         .map(str::trim)
-        .filter_map(|id| match UserId::from_str(id) {
-            Ok(user_id) => Some(user_id),
-            Err(_) => {
-                error!("Invalid Discord user ID found in owner list: {}", id);
-                None
-            }
+        .filter_map(|id| {
+            UserId::from_str(id)
+                .inspect_err(|_| {
+                    error!("Invalid Discord user ID found in owner list: {}", id);
+                })
+                .ok()
         })
         .collect())
 }
 
 fn get_framework_options(owners: HashSet<UserId>) -> FrameworkOptions<HenryData, HenryError> {
     FrameworkOptions {
-        commands: vec![
-            commands::miscellaneous::ping(),
-            commands::management::settings(),
-        ],
+        commands: vec![commands::miscellaneous::ping(), commands::admin::admin()],
         prefix_options: PrefixFrameworkOptions {
             prefix: Some("h!".into()),
             edit_tracker: Some(Arc::new(EditTracker::for_timespan(Duration::from_secs(
@@ -84,8 +84,8 @@ fn build_framework(owners: HashSet<UserId>, db_path: String) -> Framework<HenryD
                         .iter()
                         .map(|cmd| cmd.name.to_string())
                         .collect(),
-                    command_manager: CommandManager::new(),
-                    db: HenryDb::new(db_path).await,
+                    command_manager: CommandManager::default(),
+                    db: HenryDb::new(db_path).await?,
                 })
             })
         })
@@ -97,8 +97,8 @@ async fn start_bot(token: String, framework: Framework<HenryData, HenryError>) -
         .framework(framework)
         .event_handler(HenryEventHandler {})
         .await?;
-    client.start().await?;
-    Ok(())
+
+    Ok(client.start().await?)
 }
 
 #[tokio::main]

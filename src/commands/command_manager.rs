@@ -6,57 +6,56 @@ use tokio::sync::RwLock;
 pub type CommandSet = HashSet<String>;
 
 pub struct CommandManager {
-    global_toggle: RwLock<CommandSet>,
-    guild_toggle: RwLock<HashMap<GuildId, CommandSet>>,
+    global_disabled: RwLock<CommandSet>,
+    guild_disabled: RwLock<HashMap<GuildId, CommandSet>>,
 }
 
 /// Manages commands globally and per server. Each CommandSet holds the names of **disabled** commands.
 impl CommandManager {
-    pub fn new() -> Self {
-        CommandManager {
-            global_toggle: RwLock::new(CommandSet::new()),
-            guild_toggle: RwLock::new(HashMap::new()),
-        }
-    }
-
-    pub async fn is_enabled(&self, command: &str, guild_id: Option<GuildId>) -> bool {
-        let global = self.global_toggle.read().await;
-        if global.contains(command) {
+    pub async fn is_enabled(&self, command: &String, guild_id: Option<GuildId>) -> bool {
+        if self.global_disabled.read().await.contains(command) {
             return false;
         }
 
-        if let Some(guild_id) = guild_id {
-            let guild_map = self.guild_toggle.read().await;
-            if let Some(enabled) = guild_map.get(&guild_id) {
-                return !enabled.contains(command);
-            }
-        }
+        let Some(guild_id) = guild_id else {
+            return true;
+        };
 
-        true
+        let guild_map = self.guild_disabled.read().await;
+
+        !guild_map
+            .get(&guild_id)
+            .is_some_and(|set| set.contains(command))
     }
 
     /// True if the command was enable or disabled, false if it was already in the desired state.
-    pub async fn set_global(&self, command: &str, enabled: bool) -> bool {
-        let mut global = self.global_toggle.write().await;
+    pub async fn set_global(&self, command: String, enabled: bool) -> bool {
+        let mut global = self.global_disabled.write().await;
         if enabled {
-            global.remove(command)
+            global.remove(&command)
         } else {
-            global.insert(command.to_string())
+            global.insert(command)
         }
     }
 
     /// True if the command was enable or disabled, false if it was already in the desired state.
-    pub async fn set_guild(&self, command: &str, guild_id: GuildId, enabled: bool) -> bool {
-        let mut guild_map = self.guild_toggle.write().await;
-        if guild_map.contains_key(&guild_id) {
-            guild_map.insert(guild_id, CommandSet::new());
-        }
+    pub async fn set_guild(&self, command: String, guild_id: GuildId, enabled: bool) -> bool {
+        let mut guild_map = self.guild_disabled.write().await;
+        let guild = guild_map.entry(guild_id).or_default();
 
-        let guild = guild_map.get_mut(&guild_id).unwrap();
         if enabled {
-            guild.remove(command)
+            guild.remove(&command)
         } else {
-            guild.insert(command.to_string())
+            guild.insert(command)
+        }
+    }
+}
+
+impl Default for CommandManager {
+    fn default() -> Self {
+        Self {
+            global_disabled: RwLock::new(CommandSet::new()),
+            guild_disabled: RwLock::new(HashMap::new()),
         }
     }
 }

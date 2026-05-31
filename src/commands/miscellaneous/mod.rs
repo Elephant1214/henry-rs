@@ -1,7 +1,6 @@
-use crate::HenryContext;
 use crate::commands::check_command_enabled;
 use crate::embeds::HenryEmbed;
-use crate::henry_error::HenryResult;
+use crate::{HenryContext, HenryResult};
 use poise::CreateReply;
 use poise::serenity_prelude::colours::branding::YELLOW;
 use poise::serenity_prelude::colours::roles::{BLUE, GREEN, RED};

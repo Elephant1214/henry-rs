@@ -13,7 +13,5 @@ impl EventHandler for HenryEventHandler {
         ))))
     }
 
-    async fn message(&self, ctx: Context, new_message: Message) {
-
-    }
+    async fn message(&self, ctx: Context, new_message: Message) {}
 }
